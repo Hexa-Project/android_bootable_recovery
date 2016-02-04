@@ -25,6 +25,10 @@
 #include "tw_atomic.hpp"
 #include "progresstracking.hpp"
 
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+#include <list>
+#endif //TARGET_RECOVERY_IS_MULTIROM
+
 #define MAX_FSTAB_LINE_LENGTH 2048
 
 using namespace std;
@@ -71,8 +75,17 @@ enum Backup_Method_enum {
 class TWPartition
 {
 public:
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	TWPartition(const string& fstab_line = std::string());
+	TWPartition(const TWPartition& p);
+#else
 	TWPartition();
+#endif //TARGET_RECOVERY_IS_MULTIROM
 	virtual ~TWPartition();
+
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	static TWPartition *makePartFromFstab(const char *fmt, ...);
+#endif
 
 public:
 	bool Is_Mounted();                                                        // Checks mount to see if the partition is currently mounted
@@ -106,6 +119,15 @@ public:
 	int Decrypt_Adopted();
 	void Revert_Adopted();
 	void Partition_Post_Processing(bool Display_Error);                       // Apply partition specific settings after fstab processed
+
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+public:
+	unsigned long long GetSizeUsed() { return Used; }
+	unsigned long long GetSizeFree() { return Free; }
+	unsigned long long GetSizeBackup() { return Backup_Size; }
+	unsigned long long GetSizeTotal() { return Size; }
+	unsigned long long GetSizeRaw() { return Size_Raw; }
+#endif //TARGET_RECOVERY_IS_MULTIROM
 
 public:
 	string Current_File_System;                                               // Current file system
@@ -167,6 +189,11 @@ private:
 	bool Flash_Sparse_Image(const string& Filename);                          // Flashes a sparse image using simg2img
 	bool Flash_Image_FI(const string& Filename, ProgressTracking *progress);  // Flashes an image to the partition using flash_image for mtd nand
 
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+private:
+	string Get_Mount_Options_With_Defaults();                                 // Takes Mount_Options, ensures FS-specific defaults are in it and returns it
+#endif //TARGET_RECOVERY_IS_MULTIROM
+
 private:
 	bool Can_Be_Mounted;                                                      // Indicates that the partition can be mounted
 	bool Can_Be_Wiped;                                                        // Indicates that the partition can be wiped
@@ -191,6 +218,9 @@ private:
 	unsigned long long Free;                                                  // Overall free space
 	unsigned long long Backup_Size;                                           // Backup size -- may be different than used space especially when /data/media is present
 	unsigned long long Restore_Size;                                          // Restore size of the current restore operation
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	unsigned long long Size_Raw;                                              // Total size of the underlaying partition (without fs)
+#endif //TARGET_RECOVERY_IS_MULTIROM
 	bool Can_Be_Encrypted;                                                    // This partition might be encrypted, affects error handling, can only be true if crypto support is compiled in
 	bool Is_Encrypted;                                                        // This partition is thought to be encrypted -- it wouldn't mount for some reason, only avialble with crypto support
 	bool Is_Decrypted;                                                        // This partition has successfully been decrypted
@@ -216,11 +246,20 @@ private:
 	bool Mount_Read_Only;                                                     // Only mount this partition as read-only
 	bool Is_Adopted_Storage;                                                  // Indicates that this partition is for adopted storage (android_expand)
 
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+private:
+	string Bind_Of;                                                           // Path to partition which is this partition bound to
+	bool Is_ImageMount;                                                       // This is true if the partition is on .img file
+#endif //TARGET_RECOVERY_IS_MULTIROM
+
 friend class TWPartitionManager;
 friend class DataManager;
 friend class GUIPartitionList;
 friend class GUIAction;
 friend class PageManager;
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+friend class MultiROM;
+#endif //TARGET_RECOVERY_IS_MULTIROM
 };
 
 class TWPartitionManager
@@ -239,6 +278,9 @@ public:
 	int Mount_Current_Storage(bool Display_Error);                            // Mounts the current storage location
 	int Mount_Settings_Storage(bool Display_Error);                           // Mounts the settings file storage location (usually internal)
 	TWPartition* Find_Partition_By_Path(string Path);                         // Returns a pointer to a partition based on path
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	TWPartition* Find_Original_Partition_By_Path(string Path);				  // Returns a pointer to a partition from the lower-most context based on path
+#endif //TARGET_RECOVERY_IS_MULTIROM
 	int Check_Backup_Name(bool Display_Error);                                // Checks the current backup name to ensure that it is valid
 	int Run_Backup(bool adbbackup);                                           // Initiates a backup in the current storage
 	int Run_Restore(const string& Restore_Name);                              // Restores a backup
@@ -278,6 +320,16 @@ public:
 	bool Add_MTP_Storage(unsigned int Storage_ID);                            // Adds or removes an MTP Storage partition
 	bool Remove_MTP_Storage(string Mount_Point);                              // Adds or removes an MTP Storage partition
 	bool Remove_MTP_Storage(unsigned int Storage_ID);                         // Adds or removes an MTP Storage partition
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	void Update_Storage_Sizes();
+
+	const std::vector<TWPartition*>& getPartitions() const { return Partitions; }
+	std::vector<TWPartition*>& getPartitions() { return Partitions; }
+	bool Push_Context();
+	void Copy_And_Push_Context();
+	bool Pop_Context();
+	bool Has_Extra_Contexts() const { return !Contexts.empty(); }
+#endif //TARGET_RECOVERY_IS_MULTIROM
 	void Translate_Partition(const char* path, const char* resource_name, const char* default_value);
 	void Translate_Partition(const char* path, const char* resource_name, const char* default_value, const char* storage_resource_name, const char* storage_default_value);
 	void Translate_Partition_Display_Names();                                 // Updates display names based on translations
@@ -306,6 +358,13 @@ private:
 
 private:
 	std::vector<TWPartition*> Partitions;                                     // Vector list of all partitions
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+	std::list< std::vector<TWPartition*> > Contexts;
+#endif //TARGET_RECOVERY_IS_MULTIROM
+
+#ifdef TARGET_RECOVERY_IS_MULTIROM
+friend class MultiROM;
+#endif //TARGET_RECOVERY_IS_MULTIROM
 };
 
 extern TWPartitionManager PartitionManager;

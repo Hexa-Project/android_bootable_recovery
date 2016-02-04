@@ -60,6 +60,15 @@ LOCAL_SRC_FILES += \
     openrecoveryscript.cpp \
     tarWrite.c
 
+#MultiROM
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+    LOCAL_SRC_FILES += \
+        multirom/multirom.cpp \
+        multirom/mrominstaller.cpp \
+        multirom/multiromedify.cpp \
+		multirom/multirom_Zip.c
+endif
+
 ifneq ($(TARGET_RECOVERY_REBOOT_SRC),)
   LOCAL_SRC_FILES += $(TARGET_RECOVERY_REBOOT_SRC)
 endif
@@ -117,6 +126,16 @@ LOCAL_SHARED_LIBRARIES :=
 LOCAL_STATIC_LIBRARIES += libguitwrp
 LOCAL_SHARED_LIBRARIES += libaosprecovery libz libc libcutils libstdc++ libtar libblkid libminuitwrp libminadbd libmtdutils libminzip libtwadbbu
 LOCAL_SHARED_LIBRARIES += libcrecovery
+
+#MultiROM
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+    LOCAL_STATIC_LIBRARIES += libcp_xattrs
+
+    # clone libbootimg to /system/extras/ from
+    # https://github.com/Tasssadar/libbootimg.git
+    LOCAL_STATIC_LIBRARIES += libbootimg
+    LOCAL_C_INCLUDES += system/extras/libbootimg/include
+endif
 
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
     LOCAL_SHARED_LIBRARIES += libstlport
@@ -342,6 +361,32 @@ else
     LOCAL_CFLAGS += -DTW_DEFAULT_LANGUAGE=en
 endif
 
+#MultiROM
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+    LOCAL_CFLAGS += -DTARGET_RECOVERY_IS_MULTIROM
+
+    LOCAL_CFLAGS += -DTARGET_DEVICE="\"$(TARGET_DEVICE)\""
+
+#TODO
+LOCAL_CFLAGS += -DTW_DEFAULT_ROTATION=0
+
+    ifneq ($(MR_RD_ADDR),)
+        LOCAL_CFLAGS += -DMR_RD_ADDR=$(MR_RD_ADDR)
+    endif
+
+    ifeq ($(MR_USE_MROM_FSTAB),true)
+        LOCAL_CFLAGS += -DMR_USE_MROM_FSTAB
+    endif
+    ifneq ($(MR_DEVICE_RECOVERY_HOOKS),)
+        ifeq ($(MR_DEVICE_RECOVERY_HOOKS_VER),)
+            $(info MR_DEVICE_RECOVERY_HOOKS is set but MR_DEVICE_RECOVERY_HOOKS_VER is not specified!)
+        else
+            LOCAL_CFLAGS += -DMR_DEVICE_RECOVERY_HOOKS=$(MR_DEVICE_RECOVERY_HOOKS_VER)
+            LOCAL_SRC_FILES += ../../$(MR_DEVICE_RECOVERY_HOOKS)
+        endif
+    endif
+endif
+
 LOCAL_ADDITIONAL_DEPENDENCIES := \
     dump_image \
     erase_image \
@@ -358,6 +403,20 @@ LOCAL_ADDITIONAL_DEPENDENCIES := \
     permissive.sh \
     simg2img_twrp \
     init.recovery.service.rc
+
+#MultiROM
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+    #LOCAL_C_INCLUDES += $(LOCAL_PATH)/multirom
+
+    #MultiROM additions
+    LOCAL_ADDITIONAL_DEPENDENCIES += \
+        zip \
+        gnutar \
+        lz4 \
+        ntfs-3g \
+        cp_xattrs \
+        ls_xattrs
+endif
 
 ifneq ($(TARGET_ARCH), arm64)
     ifneq ($(TARGET_ARCH), x86_64)
@@ -646,6 +705,12 @@ include $(commands_recovery_local_path)/injecttwrp/Android.mk \
     $(commands_recovery_local_path)/simg2img/Android.mk \
     $(commands_recovery_local_path)/adbbu/Android.mk \
     $(commands_recovery_local_path)/libpixelflinger/Android.mk
+
+#MultiROM
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+    include $(commands_recovery_local_path)/multirom/prebuilt/Android.mk \
+            $(commands_recovery_local_path)/multirom/cp_xattrs/Android.mk
+endif
 
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
     include $(commands_recovery_local_path)/libmincrypt/Android.mk
