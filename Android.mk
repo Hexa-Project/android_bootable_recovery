@@ -548,6 +548,13 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 24; echo $$?),0)
     exclude += sh
 endif
 
+#MultiROM uses restorecon -D which is only available in toolbox
+ifeq ($(TARGET_RECOVERY_IS_MULTIROM), true)
+	ifeq ($(TWHAVE_SELINUX), true)
+		exclude += restorecon
+	endif
+endif
+
 # Having /sbin/modprobe present on 32 bit devices with can cause a massive
 # performance problem if the kernel has CONFIG_MODULES=y
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 22; echo $$?),0)
