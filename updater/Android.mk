@@ -51,6 +51,7 @@ LOCAL_STATIC_LIBRARIES += libflashutils libmmcutils libbmlutils
 LOCAL_STATIC_LIBRARIES += libbz
 LOCAL_STATIC_LIBRARIES += libcutils liblog libc
 LOCAL_STATIC_LIBRARIES += libselinux
+LOCAL_STATIC_LIBRARIES += libcrypto_utils_static
 
 LOCAL_STATIC_LIBRARIES += libselinux
 tune2fs_static_libraries := \
